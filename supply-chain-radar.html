@@ -1,0 +1,626 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>供應鏈關係雷達 · 台灣半導體</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Noto+Sans+TC:wght@300;400;500&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg:        #0a0e14;
+  --bg2:       #0f1520;
+  --bg3:       #131b26;
+  --panel:     #111926;
+  --border:    rgba(99,183,255,0.12);
+  --border2:   rgba(99,183,255,0.22);
+  --accent:    #1ddba0;
+  --accent2:   #0ea5e9;
+  --warn:      #f59e0b;
+  --danger:    #ef4444;
+  --purple:    #a78bfa;
+  --text:      #c8d8e8;
+  --text2:     #6b8099;
+  --text3:     #3d5166;
+  --risk-h:    #ef4444;
+  --risk-h-bg: rgba(239,68,68,0.1);
+  --risk-m:    #f59e0b;
+  --risk-m-bg: rgba(245,158,11,0.1);
+  --risk-l:    #1ddba0;
+  --risk-l-bg: rgba(29,219,160,0.08);
+  --font-mono: 'IBM Plex Mono', 'Space Mono', monospace;
+  --font-sans: 'Noto Sans TC', sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{width:100%;height:100%;background:var(--bg);color:var(--text);font-family:var(--font-sans);overflow:hidden}
+
+/* ── Layout ──────────────────────────────────── */
+#app{display:grid;grid-template-rows:48px 36px 1fr 40px;grid-template-columns:220px 1fr 220px;height:100vh;width:100vw}
+#topbar{grid-column:1/-1;display:flex;align-items:center;gap:0;border-bottom:1px solid var(--border);background:var(--bg2)}
+#alertbar{grid-column:1/-1;display:flex;align-items:center;gap:10px;padding:0 16px;border-bottom:1px solid rgba(245,158,11,0.25);background:rgba(245,158,11,0.06);font-family:var(--font-mono);font-size:11px;color:var(--warn)}
+#sidebar{background:var(--panel);border-right:1px solid var(--border);padding:0;overflow-y:auto;display:flex;flex-direction:column}
+#canvas-wrap{position:relative;background:var(--bg);overflow:hidden}
+#info-panel{background:var(--panel);border-left:1px solid var(--border);display:flex;flex-direction:column;overflow-y:auto}
+#statusbar{grid-column:1/-1;display:flex;align-items:center;gap:20px;padding:0 16px;border-top:1px solid var(--border);background:var(--bg2);font-family:var(--font-mono);font-size:11px;color:var(--text2)}
+
+/* ── Top bar ─────────────────────────────────── */
+.topbar-logo{display:flex;align-items:center;gap:10px;padding:0 16px;border-right:1px solid var(--border);height:100%}
+.logo-hex{width:22px;height:22px;background:var(--accent);clip-path:polygon(50% 0%,100% 25%,100% 75%,50% 100%,0% 75%,0% 25%);animation:hexspin 8s linear infinite}
+@keyframes hexspin{to{transform:rotate(360deg)}}
+.logo-text{font-family:var(--font-mono);font-size:12px;font-weight:700;letter-spacing:.1em;color:var(--accent)}
+.logo-sub{font-size:10px;color:var(--text2);margin-top:1px}
+.topbar-nav{display:flex;align-items:center;gap:0;margin-left:auto}
+.topbar-item{padding:0 16px;height:48px;display:flex;align-items:center;font-family:var(--font-mono);font-size:11px;color:var(--text2);border-left:1px solid var(--border);cursor:pointer;transition:color .2s,background .2s}
+.topbar-item:hover{color:var(--accent);background:rgba(29,219,160,0.04)}
+.topbar-item.active{color:var(--accent)}
+#clock{font-family:var(--font-mono);font-size:11px;color:var(--accent);padding:0 16px;border-left:1px solid var(--border);height:48px;display:flex;align-items:center}
+.pulse-dot{width:6px;height:6px;border-radius:50%;background:var(--accent);animation:pulse-dot 1.4s ease-in-out infinite}
+@keyframes pulse-dot{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.4;transform:scale(.7)}}
+
+/* ── Alert bar ───────────────────────────────── */
+.alert-icon{color:var(--warn);font-size:12px}
+#alertbar strong{color:#fbbf24}
+.alert-link{margin-left:auto;color:var(--accent);cursor:pointer;text-decoration:underline;font-size:11px;white-space:nowrap}
+.alert-link:hover{color:#fff}
+
+/* ── Sidebar sections ────────────────────────── */
+.sec-header{font-family:var(--font-mono);font-size:10px;letter-spacing:.15em;color:var(--text3);padding:14px 14px 6px;border-bottom:1px solid var(--border);text-transform:uppercase}
+.filter-row{display:flex;align-items:center;gap:8px;padding:7px 14px;font-size:12px;color:var(--text2);cursor:pointer;transition:background .15s}
+.filter-row:hover{background:rgba(99,183,255,0.04);color:var(--text)}
+.filter-row input[type=checkbox]{accent-color:var(--accent);cursor:pointer;width:13px;height:13px}
+.risk-pill{display:inline-flex;align-items:center;gap:4px;font-family:var(--font-mono);font-size:10px;padding:2px 8px;border-radius:3px}
+.rp-h{background:var(--risk-h-bg);color:var(--risk-h);border:1px solid rgba(239,68,68,0.2)}
+.rp-m{background:var(--risk-m-bg);color:var(--risk-m);border:1px solid rgba(245,158,11,0.2)}
+.rp-l{background:var(--risk-l-bg);color:var(--risk-l);border:1px solid rgba(29,219,160,0.2)}
+.depth-wrap{padding:10px 14px}
+.depth-wrap label{font-family:var(--font-mono);font-size:10px;color:var(--text2);display:flex;justify-content:space-between;margin-bottom:6px}
+input[type=range]{width:100%;accent-color:var(--accent);background:transparent;cursor:pointer}
+.scn-btn{margin:4px 10px;padding:7px 12px;background:rgba(29,219,160,0.05);border:1px solid rgba(29,219,160,0.2);color:var(--accent);font-family:var(--font-mono);font-size:10px;border-radius:4px;cursor:pointer;text-align:left;transition:background .2s,border-color .2s}
+.scn-btn:hover{background:rgba(29,219,160,0.12);border-color:rgba(29,219,160,0.45)}
+.scn-btn .btn-label{color:var(--text2);display:block;font-size:9px;margin-top:2px}
+.sidebar-spacer{flex:1}
+.model-status{margin:10px;padding:10px;background:rgba(99,183,255,0.04);border:1px solid var(--border);border-radius:6px;font-family:var(--font-mono);font-size:10px}
+.ms-row{display:flex;justify-content:space-between;padding:2px 0;color:var(--text2)}
+.ms-row span:last-child{color:var(--accent)}
+.ms-title{color:var(--text3);font-size:9px;letter-spacing:.12em;margin-bottom:6px}
+
+/* ── Legend ──────────────────────────────────── */
+.legend-item{display:flex;align-items:center;gap:8px;padding:5px 14px;font-size:11px;color:var(--text2)}
+.leg-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
+.leg-line{width:22px;height:2px;flex-shrink:0}
+
+/* ── Canvas ──────────────────────────────────── */
+canvas{display:block;width:100%;height:100%}
+
+/* ── Tooltip ─────────────────────────────────── */
+#tooltip{position:absolute;pointer-events:none;background:var(--bg2);border:1px solid var(--border2);border-radius:6px;padding:10px 12px;font-size:12px;color:var(--text2);max-width:170px;display:none;z-index:20;backdrop-filter:blur(4px)}
+#tooltip .tt-name{font-family:var(--font-mono);font-size:13px;font-weight:500;color:var(--text);margin-bottom:4px}
+
+/* ── Info panel ──────────────────────────────── */
+.ip-header{padding:14px 14px 10px;border-bottom:1px solid var(--border)}
+.ip-name{font-family:var(--font-mono);font-size:13px;font-weight:500;color:var(--text)}
+.ip-sub{font-size:11px;color:var(--text2);margin-top:3px}
+.ip-stats{padding:10px 14px;display:flex;flex-direction:column;gap:0}
+.ip-row{display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid rgba(99,183,255,0.06);font-size:11px}
+.ip-row .lbl{color:var(--text2)}
+.ip-row .val{font-family:var(--font-mono);font-size:11px;color:var(--text);text-align:right}
+.ip-btn{margin:8px 12px;padding:8px 12px;background:rgba(14,165,233,0.08);border:1px solid rgba(14,165,233,0.25);color:var(--accent2);font-family:var(--font-mono);font-size:10px;border-radius:4px;cursor:pointer;width:calc(100% - 24px);text-align:center;transition:background .2s}
+.ip-btn:hover{background:rgba(14,165,233,0.2)}
+.ip-empty{padding:24px 14px;font-size:12px;color:var(--text3);font-family:var(--font-mono);line-height:1.8}
+
+/* ── Status bar ──────────────────────────────── */
+.sb-item{display:flex;align-items:center;gap:6px}
+.sb-num{font-size:14px;font-weight:700}
+.sn-h{color:var(--risk-h)}
+.sn-m{color:var(--risk-m)}
+.sn-l{color:var(--risk-l)}
+.sn-w{color:var(--text)}
+.sb-div{width:1px;height:20px;background:var(--border)}
+.sb-right{margin-left:auto;font-size:10px;color:var(--text3)}
+
+/* ── Scrollbar ───────────────────────────────── */
+::-webkit-scrollbar{width:4px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--border2);border-radius:2px}
+
+/* ── Responsive (narrow) ─────────────────────── */
+@media(max-width:900px){
+  #app{grid-template-columns:180px 1fr 0px}
+  #info-panel{display:none}
+}
+@media(max-width:640px){
+  #app{grid-template-columns:0px 1fr 0px}
+  #sidebar{display:none}
+}
+</style>
+</head>
+<body>
+<div id="app">
+
+  <!-- ── Top bar ── -->
+  <div id="topbar">
+    <div class="topbar-logo">
+      <div class="logo-hex"></div>
+      <div>
+        <div class="logo-text">SCR·RADAR</div>
+        <div class="logo-sub">供應鏈關係雷達</div>
+      </div>
+    </div>
+    <div class="topbar-item active">台灣半導體</div>
+    <div class="topbar-item">圖譜分析</div>
+    <div class="topbar-item">AML掃描</div>
+    <div class="topbar-item">SCF商機</div>
+    <div class="topbar-nav">
+      <div class="topbar-item"><span class="pulse-dot" style="margin-right:6px"></span>即時</div>
+      <div id="clock">--:--:--</div>
+    </div>
+  </div>
+
+  <!-- ── Alert bar ── -->
+  <div id="alertbar">
+    <span class="alert-icon">⚑</span>
+    <strong>GNN風險預警</strong>
+    日月光半導體（高雄）· 颱風路徑影響封測產能 · 下游 3 家客戶存在交期風險
+    <span id="alert-detail" class="alert-link">查看傳導路徑 →</span>
+  </div>
+
+  <!-- ── Left sidebar ── -->
+  <div id="sidebar">
+    <div class="sec-header">圖層篩選</div>
+    <label class="filter-row"><input type="checkbox" id="f-trade" checked> 貿易往來</label>
+    <label class="filter-row"><input type="checkbox" id="f-equity" checked> 持股關係</label>
+    <label class="filter-row"><input type="checkbox" id="f-gnn" checked> GNN 預測連結</label>
+
+    <div class="sec-header">風險分層</div>
+    <label class="filter-row"><input type="checkbox" id="r-high" checked> <span class="risk-pill rp-h">● 高風險</span></label>
+    <label class="filter-row"><input type="checkbox" id="r-med" checked> <span class="risk-pill rp-m">● 中風險</span></label>
+    <label class="filter-row"><input type="checkbox" id="r-low" checked> <span class="risk-pill rp-l">● 低風險</span></label>
+
+    <div class="sec-header">供應鏈深度</div>
+    <div class="depth-wrap">
+      <label>深度層級 <span id="depth-label">4 階</span></label>
+      <input type="range" min="1" max="4" value="4" id="depth-slider">
+    </div>
+
+    <div class="sec-header">業務場景</div>
+    <button class="scn-btn" onclick="handleScenario('single')">
+      單點依賴分析
+      <span class="btn-label">識別關鍵瓶頸供應商</span>
+    </button>
+    <button class="scn-btn" onclick="handleScenario('aml')">
+      AML / 虛假貿易掃描
+      <span class="btn-label">環狀資金流偵測</span>
+    </button>
+    <button class="scn-btn" onclick="handleScenario('scf')">
+      SCF 供應鏈金融商機
+      <span class="btn-label">精準獲客推薦</span>
+    </button>
+
+    <div class="sec-header">圖例</div>
+    <div class="legend-item"><div class="leg-dot" style="background:var(--risk-h)"></div>高風險節點</div>
+    <div class="legend-item"><div class="leg-dot" style="background:var(--risk-m)"></div>中風險節點</div>
+    <div class="legend-item"><div class="leg-dot" style="background:var(--risk-l)"></div>低風險節點</div>
+    <div class="legend-item"><div class="leg-line" style="background:#378ADD"></div>貿易往來</div>
+    <div class="legend-item"><div class="leg-line" style="background:var(--purple);border-top:1px dashed var(--purple);background:transparent"></div>持股關係</div>
+    <div class="legend-item"><div class="leg-line" style="border-top:2px dashed var(--accent);background:transparent"></div>GNN 預測</div>
+
+    <div class="sidebar-spacer"></div>
+
+    <div class="model-status">
+      <div class="ms-title">GNN 模型狀態</div>
+      <div class="ms-row"><span>供應鏈可見度</span><span>70%</span></div>
+      <div class="ms-row"><span>預測準確度</span><span>93.2%</span></div>
+      <div class="ms-row"><span>新增預測連結</span><span>3 條</span></div>
+      <div class="ms-row"><span>實體解析精度</span><span>99%</span></div>
+    </div>
+  </div>
+
+  <!-- ── Canvas ── -->
+  <div id="canvas-wrap">
+    <canvas id="c"></canvas>
+    <div id="tooltip"><div class="tt-name" id="tt-name"></div><div id="tt-body"></div></div>
+  </div>
+
+  <!-- ── Right info panel ── -->
+  <div id="info-panel">
+    <div class="ip-header">
+      <div class="ip-name" id="ip-name">點擊節點</div>
+      <div class="ip-sub" id="ip-sub">查看詳細資訊</div>
+    </div>
+    <div id="ip-content">
+      <div class="ip-empty">
+        ← 點擊圖譜中任意節點<br>查看企業詳情、風險指標與銀行業務機會
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Status bar ── -->
+  <div id="statusbar">
+    <div class="sb-item"><span class="sb-num sn-h">3</span><span>高風險節點</span></div>
+    <div class="sb-div"></div>
+    <div class="sb-item"><span class="sb-num sn-m">4</span><span>中風險節點</span></div>
+    <div class="sb-div"></div>
+    <div class="sb-item"><span class="sb-num sn-l">7</span><span>低風險節點</span></div>
+    <div class="sb-div"></div>
+    <div class="sb-item"><span class="sb-num sn-w">22</span><span>關係連結</span></div>
+    <div class="sb-div"></div>
+    <div class="sb-item"><span class="sb-num" style="color:var(--accent)">3</span><span>GNN 預測連結</span></div>
+    <div class="sb-right">資料來源：電子發票 · 海關提單 · 工商登記 · ESG評分</div>
+  </div>
+
+</div>
+
+<script>
+/* ══════════════════════════════════════════
+   DATA
+══════════════════════════════════════════ */
+const NODES = [
+  { id:0,  name:'台積電 TSMC',      sub:'晶圓代工 · 核心企業', tier:1, risk:'low',
+    px:.50, py:.42, r:34,
+    stats:[['產業類別','晶圓代工'],['信用評級','AA+'],['年營收','NT$2.16兆'],['供應商數','250+'],['地理集中','台南/新竹'],['風險分數','12 / 100']] },
+  { id:1,  name:'聯發科 MediaTek',  sub:'IC 設計', tier:1, risk:'low',
+    px:.22, py:.25, r:22,
+    stats:[['產業類別','IC 設計'],['信用評級','AA'],['年營收','NT$4,910億'],['主要晶圓廠','TSMC'],['風險分數','18 / 100']] },
+  { id:2,  name:'日月光 ASE',       sub:'封裝測試 ⚑ 颱風預警', tier:2, risk:'high',
+    px:.77, py:.25, r:22,
+    stats:[['產業類別','封裝測試'],['信用評級','A-'],['工廠位置','高雄'],['颱風風險','極高'],['下游影響','3 家客戶'],['風險分數','76 / 100']] },
+  { id:3,  name:'矽品 SPIL',        sub:'封裝測試', tier:2, risk:'med',
+    px:.82, py:.56, r:18,
+    stats:[['產業類別','封裝測試'],['信用評級','A'],['年營收','NT$820億'],['主要客戶','聯發科'],['風險分數','44 / 100']] },
+  { id:4,  name:'聯電 UMC',         sub:'晶圓代工', tier:1, risk:'low',
+    px:.30, py:.63, r:20,
+    stats:[['產業類別','晶圓代工'],['信用評級','A+'],['年營收','NT$2,110億'],['製程節點','22nm+'],['風險分數','21 / 100']] },
+  { id:5,  name:'穩懋 Win Semi',    sub:'化合物半導體', tier:3, risk:'med',
+    px:.68, py:.72, r:15,
+    stats:[['產業類別','砷化鎵代工'],['信用評級','A-'],['年營收','NT$156億'],['主要客戶','Qorvo'],['風險分數','41 / 100']] },
+  { id:6,  name:'信越化學（日本）', sub:'矽晶圓原料 · 地緣風險', tier:3, risk:'high',
+    px:.14, py:.48, r:16,
+    stats:[['產業類別','矽晶圓'],['國家','日本'],['全球市佔','28%'],['地緣風險','中高'],['風險分數','68 / 100']] },
+  { id:7,  name:'台勝科 SMC',       sub:'矽晶圓 · 本地', tier:3, risk:'low',
+    px:.18, py:.72, r:14,
+    stats:[['產業類別','矽晶圓'],['信用評級','A'],['供貨對象','TSMC / UMC'],['本地化程度','高'],['風險分數','22 / 100']] },
+  { id:8,  name:'應用材料 AMAT',    sub:'設備 · 美國 · 出口管制', tier:3, risk:'med',
+    px:.43, py:.14, r:16,
+    stats:[['產業類別','半導體設備'],['國家','美國'],['出口管制','ECCN 監控'],['替代難度','極高'],['風險分數','52 / 100']] },
+  { id:9,  name:'家登 Gudeng',      sub:'光罩盒耗材', tier:3, risk:'low',
+    px:.63, py:.17, r:13,
+    stats:[['產業類別','耗材'],['信用評級','B+'],['年營收','NT$88億'],['集中度','中'],['風險分數','28 / 100']] },
+  { id:10, name:'南亞科 Nanya',     sub:'DRAM 設計製造', tier:2, risk:'low',
+    px:.36, py:.78, r:17,
+    stats:[['產業類別','DRAM'],['信用評級','A'],['年營收','NT$360億'],['技術自有','是'],['風險分數','25 / 100']] },
+  { id:11, name:'Qorvo（美國）',    sub:'RF 晶片客戶', tier:2, risk:'med',
+    px:.87, py:.40, r:14,
+    stats:[['產業類別','RF 射頻晶片'],['國家','美國'],['對台依賴','高'],['替代方案','低'],['風險分數','47 / 100']] },
+  { id:12, name:'中芯 SMIC（中）',  sub:'⚑ 制裁名單 · AML 高風險', tier:4, risk:'high',
+    px:.08, py:.30, r:14,
+    stats:[['產業類別','晶圓代工'],['國家','中國'],['制裁狀態','實體清單'],['AML 風險','極高'],['風險分數','88 / 100']] },
+  { id:13, name:'隱藏供應商',       sub:'GNN 預測 · 待確認', tier:4, risk:'med',
+    px:.52, py:.88, r:12,
+    stats:[['狀態','GNN 預測連結'],['信心度','78%'],['預測依據','發票聚類'],['建議行動','主動查訪'],['風險分數','待評估']] },
+];
+
+const EDGES = [
+  {s:1, t:0,  type:'trade',  w:3, label:'晶圓代工'},
+  {s:4, t:0,  type:'trade',  w:2, label:''},
+  {s:0, t:2,  type:'trade',  w:3, label:'封測委外'},
+  {s:1, t:3,  type:'trade',  w:2, label:''},
+  {s:0, t:8,  type:'trade',  w:2, label:'設備採購'},
+  {s:0, t:9,  type:'trade',  w:1, label:''},
+  {s:4, t:7,  type:'trade',  w:2, label:'矽晶圓'},
+  {s:0, t:6,  type:'trade',  w:2, label:'矽晶圓'},
+  {s:5, t:11, type:'trade',  w:2, label:'GaAs 晶片'},
+  {s:2, t:11, type:'trade',  w:1, label:''},
+  {s:10,t:4,  type:'trade',  w:1, label:''},
+  {s:0, t:10, type:'trade',  w:1, label:''},
+  {s:3, t:5,  type:'trade',  w:1, label:''},
+  {s:8, t:0,  type:'trade',  w:1, label:''},
+  {s:8, t:4,  type:'trade',  w:1, label:''},
+  {s:12,t:4,  type:'trade',  w:1, label:'疑似往來'},
+  {s:1, t:10, type:'equity', w:1, label:'關聯持股'},
+  {s:4, t:0,  type:'equity', w:1, label:''},
+  {s:2, t:5,  type:'equity', w:1, label:'轉投資'},
+  {s:0, t:13, type:'gnn',    w:1, label:'GNN預測'},
+  {s:1, t:13, type:'gnn',    w:1, label:''},
+  {s:7, t:13, type:'gnn',    w:1, label:''},
+];
+
+/* ══════════════════════════════════════════
+   CANVAS
+══════════════════════════════════════════ */
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+let W, H, selected = null, maxDepth = 4;
+let pulseT = 0, scanAngle = 0;
+
+function resize() {
+  const wrap = document.getElementById('canvas-wrap');
+  W = wrap.clientWidth; H = wrap.clientHeight;
+  canvas.width  = W * devicePixelRatio;
+  canvas.height = H * devicePixelRatio;
+  canvas.style.width  = W + 'px';
+  canvas.style.height = H + 'px';
+  ctx.scale(devicePixelRatio, devicePixelRatio);
+}
+
+function nx(n){ return n.px * W; }
+function ny(n){ return n.py * H; }
+
+const RISK_COL  = { high:'#ef4444', med:'#f59e0b', low:'#1ddba0' };
+const RISK_FILL = { high:'rgba(239,68,68,0.08)', med:'rgba(245,158,11,0.08)', low:'rgba(29,219,160,0.05)' };
+const RISK_GLOW = { high:'rgba(239,68,68,0.3)',  med:'rgba(245,158,11,0.3)',  low:'rgba(29,219,160,0.25)' };
+
+function visEdges() {
+  const ft = document.getElementById('f-trade').checked;
+  const fe = document.getElementById('f-equity').checked;
+  const fg = document.getElementById('f-gnn').checked;
+  const rh = document.getElementById('r-high').checked;
+  const rm = document.getElementById('r-med').checked;
+  const rl = document.getElementById('r-low').checked;
+  return EDGES.filter(e => {
+    const sn = NODES[e.s], tn = NODES[e.t];
+    if (sn.tier > maxDepth || tn.tier > maxDepth) return false;
+    if (e.type==='trade'  && !ft) return false;
+    if (e.type==='equity' && !fe) return false;
+    if (e.type==='gnn'    && !fg) return false;
+    const riskOk = n => (n.risk==='high'&&rh)||(n.risk==='med'&&rm)||(n.risk==='low'&&rl);
+    return riskOk(sn) && riskOk(tn);
+  });
+}
+
+function visNodes() {
+  const rh = document.getElementById('r-high').checked;
+  const rm = document.getElementById('r-med').checked;
+  const rl = document.getElementById('r-low').checked;
+  return NODES.filter(n => {
+    if (n.tier > maxDepth) return false;
+    return (n.risk==='high'&&rh)||(n.risk==='med'&&rm)||(n.risk==='low'&&rl);
+  });
+}
+
+function draw() {
+  if (!W) return;
+  ctx.clearRect(0,0,W,H);
+
+  /* grid dots */
+  ctx.fillStyle = 'rgba(99,183,255,0.04)';
+  const gs = 32;
+  for(let x=0;x<W;x+=gs) for(let y=0;y<H;y+=gs) {
+    ctx.beginPath(); ctx.arc(x,y,1,0,Math.PI*2); ctx.fill();
+  }
+
+  /* radar sweep from TSMC */
+  const tc = NODES[0];
+  const cx = nx(tc), cy = ny(tc);
+  const maxR = Math.max(W,H) * 1.2;
+  const grad = ctx.createConicalGradient ? null : null;
+  ctx.save();
+  ctx.translate(cx,cy);
+  ctx.rotate(scanAngle);
+  const sg = ctx.createLinearGradient(0,-maxR,0,0);
+  sg.addColorStop(0,'rgba(29,219,160,0.0)');
+  sg.addColorStop(1,'rgba(29,219,160,0.06)');
+  ctx.beginPath();
+  ctx.moveTo(0,0);
+  ctx.arc(0,0,maxR,-Math.PI/2,-Math.PI/2+Math.PI/3);
+  ctx.closePath();
+  ctx.fillStyle = sg;
+  ctx.fill();
+  ctx.restore();
+
+  /* pulse rings from TSMC */
+  [0.3, 0.6, 0.9].forEach((phase,i) => {
+    const t = (pulseT/120 + phase) % 1;
+    ctx.beginPath();
+    ctx.arc(cx, cy, t * Math.min(W,H)*0.55, 0, Math.PI*2);
+    ctx.strokeStyle = `rgba(29,219,160,${0.18*(1-t)})`;
+    ctx.lineWidth = 1;
+    ctx.stroke();
+  });
+
+  /* edges */
+  visEdges().forEach(e => {
+    const sn=NODES[e.s], tn=NODES[e.t];
+    const x1=nx(sn),y1=ny(sn),x2=nx(tn),y2=ny(tn);
+    const mx=(x1+x2)/2, my=(y1+y2)/2;
+    const dx=x2-x1, dy=y2-y1;
+    const cpx=mx-dy*0.18, cpy=my+dx*0.18;
+
+    ctx.beginPath();
+    if (e.type==='trade')  { ctx.strokeStyle='rgba(55,138,221,0.45)'; ctx.setLineDash([]); ctx.lineWidth=Math.max(1,e.w*0.9); }
+    if (e.type==='equity') { ctx.strokeStyle='rgba(167,139,250,0.55)'; ctx.setLineDash([5,4]); ctx.lineWidth=1.5; }
+    if (e.type==='gnn')    { ctx.strokeStyle='rgba(29,219,160,0.65)'; ctx.setLineDash([4,3]); ctx.lineWidth=1.5; }
+    ctx.moveTo(x1,y1);
+    ctx.quadraticCurveTo(cpx,cpy,x2,y2);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    /* arrowhead */
+    const ang = Math.atan2(y2-cpy, x2-cpx);
+    const ar = tn.r+2;
+    const ax=x2-Math.cos(ang)*ar, ay=y2-Math.sin(ang)*ar;
+    ctx.beginPath();
+    ctx.moveTo(ax,ay);
+    ctx.lineTo(ax-Math.cos(ang-.45)*9,ay-Math.sin(ang-.45)*9);
+    ctx.moveTo(ax,ay);
+    ctx.lineTo(ax-Math.cos(ang+.45)*9,ay-Math.sin(ang+.45)*9);
+    ctx.strokeStyle = e.type==='trade'?'rgba(55,138,221,0.6)':e.type==='gnn'?'rgba(29,219,160,0.7)':'rgba(167,139,250,0.6)';
+    ctx.lineWidth=1.2;
+    ctx.stroke();
+
+    /* edge label */
+    if (e.label) {
+      ctx.fillStyle='rgba(107,128,153,0.8)';
+      ctx.font='10px "IBM Plex Mono",monospace';
+      ctx.textAlign='center'; ctx.textBaseline='middle';
+      ctx.fillText(e.label, cpx, cpy);
+    }
+  });
+
+  /* nodes */
+  visNodes().forEach(n => {
+    const x=nx(n),y=ny(n),r=n.r;
+    const sel = selected && selected.id===n.id;
+    const col=RISK_COL[n.risk];
+
+    /* glow */
+    const grd=ctx.createRadialGradient(x,y,r*0.3,x,y,r*2.2);
+    grd.addColorStop(0,RISK_GLOW[n.risk]);
+    grd.addColorStop(1,'transparent');
+    ctx.beginPath(); ctx.arc(x,y,r*2.2,0,Math.PI*2);
+    ctx.fillStyle=grd; ctx.fill();
+
+    /* selection ring */
+    if(sel){
+      ctx.beginPath(); ctx.arc(x,y,r+7,0,Math.PI*2);
+      ctx.strokeStyle=col; ctx.lineWidth=2; ctx.stroke();
+      ctx.beginPath(); ctx.arc(x,y,r+12,0,Math.PI*2);
+      ctx.strokeStyle=col.replace(')',',0.25)').replace('rgb','rgba'); ctx.lineWidth=1; ctx.stroke();
+    }
+
+    /* circle */
+    ctx.beginPath(); ctx.arc(x,y,r,0,Math.PI*2);
+    ctx.fillStyle=RISK_FILL[n.risk]; ctx.fill();
+    ctx.strokeStyle=col; ctx.lineWidth=sel?2:1; ctx.stroke();
+
+    /* text */
+    const lines = n.name.replace('（','(').replace('）',')').split(' ');
+    const fs=Math.max(9,Math.min(11,r*0.38));
+    ctx.fillStyle=col;
+    ctx.font=`500 ${fs}px "IBM Plex Mono",monospace`;
+    ctx.textAlign='center'; ctx.textBaseline='middle';
+    if(lines.length>=2){
+      ctx.fillText(lines[0],x,y-fs*0.65);
+      ctx.font=`${fs*0.85}px "Noto Sans TC",sans-serif`;
+      ctx.fillStyle=col+'cc';
+      ctx.fillText(lines[1],x,y+fs*0.75);
+    } else {
+      ctx.fillText(lines[0],x,y);
+    }
+
+    /* badge: GNN */
+    if(n.id===13){
+      ctx.beginPath(); ctx.arc(x+r*.65,y-r*.65,6,0,Math.PI*2);
+      ctx.fillStyle='#1ddba0'; ctx.fill();
+      ctx.fillStyle='#0a0e14'; ctx.font='bold 7px monospace';
+      ctx.textAlign='center'; ctx.textBaseline='middle';
+      ctx.fillText('G',x+r*.65,y-r*.65);
+    }
+    /* badge: AML */
+    if(n.id===12){
+      ctx.beginPath(); ctx.arc(x+r*.65,y-r*.65,6,0,Math.PI*2);
+      ctx.fillStyle='#ef4444'; ctx.fill();
+      ctx.fillStyle='#fff'; ctx.font='bold 8px monospace';
+      ctx.textAlign='center'; ctx.textBaseline='middle';
+      ctx.fillText('!',x+r*.65,y-r*.65);
+    }
+    /* badge: alert */
+    if(n.id===2){
+      ctx.beginPath(); ctx.arc(x+r*.65,y-r*.65,6,0,Math.PI*2);
+      ctx.fillStyle='#f59e0b'; ctx.fill();
+      ctx.fillStyle='#0a0e14'; ctx.font='bold 8px monospace';
+      ctx.textAlign='center'; ctx.textBaseline='middle';
+      ctx.fillText('⚑',x+r*.65,y-r*.65);
+    }
+  });
+}
+
+/* ══════════════════════════════════════════
+   ANIMATION
+══════════════════════════════════════════ */
+function loop(){
+  pulseT=(pulseT+0.6)%120;
+  scanAngle=(scanAngle+0.008)%(Math.PI*2);
+  draw();
+  requestAnimationFrame(loop);
+}
+
+/* ══════════════════════════════════════════
+   INTERACTION
+══════════════════════════════════════════ */
+function hitTest(px,py){
+  const vn=visNodes();
+  for(let i=vn.length-1;i>=0;i--){
+    const n=vn[i];
+    const dx=px-nx(n),dy=py-ny(n);
+    if(Math.sqrt(dx*dx+dy*dy)<n.r) return n;
+  }
+  return null;
+}
+
+const MODAL_MSGS = {
+  single: `正在分析台積電供應鏈單點依賴風險...\n\n⚑ 矽晶圓：80% 來自信越化學（日本），本地替代僅 20%\n⚑ 設備：EUV 光刻機依賴 ASML，無替代方案\n⚑ 封裝：日月光佔封測 60% 委外量\n\n建議：增加台勝科矽晶圓授信額度，協助客戶多元化供應商。`,
+  aml: `AML 掃描完成 · 發現 1 條疑似風險路徑\n\n⚑ 路徑：中芯 SMIC → 聯電 UMC → [貿易公司A] → 香港帳戶\n⚑ 模式：分拆轉帳（Structuring）+ 跨境匯集\n⚑ 建議：對聯電進行加強盡職調查（EDD），確認與 SMIC 往來性質`,
+  scf: `SCF 商機偵測完成 · 發現 2 個高潛力目標\n\n★ 台勝科 SMC：應收帳款週期 45天，近期擴產 NT$30億，融資需求強烈\n★ 家登 Gudeng：台積電核心供應商，信用評級穩健，尚未與本行往來\n\n建議：由客戶經理主動接洽，提供供應鏈應收帳款融資方案`
+};
+
+function handleScenario(type){
+  alert(MODAL_MSGS[type]);
+}
+
+canvas.addEventListener('mousemove', e => {
+  const r = canvas.getBoundingClientRect();
+  const n = hitTest(e.clientX-r.left, e.clientY-r.top);
+  const tt = document.getElementById('tooltip');
+  if(n){
+    canvas.style.cursor='pointer';
+    tt.style.display='block';
+    let left = e.clientX-r.left+14;
+    if(left+180>W) left=e.clientX-r.left-180;
+    tt.style.left=left+'px';
+    tt.style.top=(e.clientY-r.top-10)+'px';
+    document.getElementById('tt-name').textContent=n.name;
+    document.getElementById('tt-body').innerHTML=
+      `<span class="risk-pill rp-${n.risk}">${n.risk==='high'?'高風險':n.risk==='med'?'中風險':'低風險'}</span> · ${n.sub}`;
+  } else {
+    canvas.style.cursor='default';
+    tt.style.display='none';
+  }
+});
+
+canvas.addEventListener('click', e => {
+  const r = canvas.getBoundingClientRect();
+  const n = hitTest(e.clientX-r.left, e.clientY-r.top);
+  if(n){ selected=n; renderInfo(n); }
+  else  { selected=null; clearInfo(); }
+});
+
+function renderInfo(n){
+  document.getElementById('ip-name').textContent = n.name;
+  document.getElementById('ip-sub').textContent  = n.sub;
+  const rows = n.stats.map(([l,v])=>
+    `<div class="ip-row"><span class="lbl">${l}</span><span class="val">${v}</span></div>`
+  ).join('');
+  document.getElementById('ip-content').innerHTML =
+    `<div class="ip-stats">${rows}</div>
+     <button class="ip-btn" onclick="alert('深入分析：${n.name}\\n\\n建議行動：檢視近 6 個月貿易融資紀錄，評估信用額度調整空間，並與 RM 排定客戶拜訪。')">深入分析此節點 →</button>`;
+}
+
+function clearInfo(){
+  document.getElementById('ip-name').textContent='點擊節點';
+  document.getElementById('ip-sub').textContent='查看詳細資訊';
+  document.getElementById('ip-content').innerHTML='<div class="ip-empty">← 點擊圖譜中任意節點<br>查看企業詳情、風險指標與銀行業務機會</div>';
+}
+
+/* controls */
+['f-trade','f-equity','f-gnn','r-high','r-med','r-low'].forEach(id=>{
+  document.getElementById(id).addEventListener('change', ()=>draw());
+});
+document.getElementById('depth-slider').addEventListener('input', e=>{
+  maxDepth = parseInt(e.target.value);
+  document.getElementById('depth-label').textContent = maxDepth+' 階';
+  draw();
+});
+document.getElementById('alert-detail').addEventListener('click', ()=>{
+  selected = NODES[2]; renderInfo(NODES[2]);
+});
+
+/* clock */
+function tick(){ document.getElementById('clock').textContent=new Date().toLocaleTimeString('zh-TW'); }
+setInterval(tick,1000); tick();
+
+/* init */
+window.addEventListener('load', ()=>{ resize(); loop(); });
+window.addEventListener('resize', ()=>{ resize(); });
+</script>
+</body>
+</html>
